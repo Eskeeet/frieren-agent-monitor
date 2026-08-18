@@ -7,6 +7,7 @@ private struct PetAlert {
     let detail: String
     let icon: String
     let color: Color
+    let celebratesCompletion: Bool
 }
 
 struct PetView: View {
@@ -59,8 +60,8 @@ struct PetView: View {
     private var pet: some View {
         ZStack(alignment: .topTrailing) {
             FrierenSprite(
-                mood: monitor.mood,
-                hovered: hoveringPet,
+                mood: spriteMood,
+                hovered: spriteHovered,
                 travelDirection: motion.dragDirection,
                 runningSessionCount: monitor.liveSessions.filter { $0.state == .running }.count,
                 reactingToClick: reactingToClick,
@@ -98,7 +99,8 @@ struct PetView: View {
                 title: "Prompt needed",
                 detail: waiting.displayName,
                 icon: "exclamationmark.bubble.fill",
-                color: .orange
+                color: .orange,
+                celebratesCompletion: false
             )
         }
         if let finished = monitor.sessions.first(where: {
@@ -110,7 +112,8 @@ struct PetView: View {
                 title: "Session finished!",
                 detail: finished.displayName,
                 icon: "checkmark.circle.fill",
-                color: .green
+                color: .green,
+                celebratesCompletion: true
             )
         }
         return nil
@@ -121,6 +124,22 @@ struct PetView: View {
     private var petAlert: PetAlert? {
         guard let alert = currentAlert, alert.key != dismissedAlertKey else { return nil }
         return alert
+    }
+
+    private var showingCompletionAlert: Bool {
+        !expanded && petAlert?.celebratesCompletion == true
+    }
+
+    private var spriteHovered: Bool {
+        hoveringPet && currentAlert?.celebratesCompletion != true
+    }
+
+    private var spriteMood: PetMood {
+        guard monitor.mood == .celebrating, !showingCompletionAlert else { return monitor.mood }
+        if monitor.liveSessions.contains(where: { $0.state == .waiting }) { return .needsInput }
+        if monitor.liveSessions.contains(where: { $0.state == .running }) { return .working }
+        if !monitor.liveSessions.isEmpty { return .watching }
+        return .sleeping
     }
 
     private func scheduleAlertDismissal(for key: String?) {
