@@ -16,14 +16,30 @@ private struct HookRecord: Decodable {
 }
 
 private struct CodexRolloutRecord: Decodable {
+    struct Source: Decodable {
+        let isSubagent: Bool
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            if (try? container.decode(String.self)) != nil {
+                isSubagent = false
+                return
+            }
+
+            let value = try container.decode([String: JSONValue].self)
+            isSubagent = value["subagent"] != nil
+        }
+    }
+
     struct Payload: Decodable {
         let id: String?
         let sessionID: String?
         let cwd: String?
         let type: String?
+        let source: Source?
 
         enum CodingKeys: String, CodingKey {
-            case id, cwd, type
+            case id, cwd, type, source
             case sessionID = "session_id"
         }
     }
@@ -31,6 +47,25 @@ private struct CodexRolloutRecord: Decodable {
     let timestamp: String
     let type: String
     let payload: Payload
+}
+
+private enum JSONValue: Decodable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() { self = .null }
+        else if let value = try? container.decode(String.self) { self = .string(value) }
+        else if let value = try? container.decode(Double.self) { self = .number(value) }
+        else if let value = try? container.decode(Bool.self) { self = .bool(value) }
+        else if let value = try? container.decode([String: JSONValue].self) { self = .object(value) }
+        else { self = .array(try container.decode([JSONValue].self)) }
+    }
 }
 
 private struct CodexSessionIndexRecord: Decodable {
@@ -246,6 +281,10 @@ final class SessionMonitor: ObservableObject {
                   let modifiedAt = values.contentModificationDate,
                   modifiedAt >= scanCutoff,
                   let metadata = readCodexMetadata(at: url),
+                  // Codex gives internal agents their own rollouts, and each of
+                  // their turns emits task_complete. They are implementation
+                  // details of the parent task, not user-facing sessions.
+                  !metadata.isSubagent,
                   let lifecycle = readCodexLifecycle(at: url) else { return nil }
 
             let state: MonitorState
@@ -270,14 +309,16 @@ final class SessionMonitor: ObservableObject {
         }
     }
 
-    nonisolated private static func readCodexMetadata(at url: URL) -> (id: String, cwd: String?, startedAt: Date)? {
+    nonisolated private static func readCodexMetadata(
+        at url: URL
+    ) -> (id: String, cwd: String?, startedAt: Date, isSubagent: Bool)? {
         guard let line = readFirstLine(at: url),
               let data = line.data(using: .utf8),
               let record = try? JSONDecoder().decode(CodexRolloutRecord.self, from: data),
               record.type == "session_meta",
               let id = record.payload.id ?? record.payload.sessionID,
               let startedAt = parseCodexDate(record.timestamp) else { return nil }
-        return (id, record.payload.cwd, startedAt)
+        return (id, record.payload.cwd, startedAt, record.payload.source?.isSubagent == true)
     }
 
     nonisolated private static func readCodexLifecycle(at url: URL) -> (event: String, date: Date)? {
