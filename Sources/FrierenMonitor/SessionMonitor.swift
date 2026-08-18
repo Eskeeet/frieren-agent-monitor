@@ -148,10 +148,15 @@ final class SessionMonitor: ObservableObject {
         for hook in hooks {
             guard let index = bestMatch(for: hook, in: next) else { continue }
             let hookDate = Date(timeIntervalSince1970: hook.timestamp)
-            guard hookDate >= next[index].updatedAt.addingTimeInterval(-2) else { continue }
+            // Process discovery only proves that a harness host exists. Cursor's
+            // Agents Window host is persistent, so its latest lifecycle hook must
+            // remain authoritative until a newer prompt starts another turn.
+            guard hookDate >= next[index].startedAt.addingTimeInterval(-2) else { continue }
+            if hook.event == "start" { next[index].state = .running; next[index].updatedAt = hookDate }
             if hook.event == "permission" { next[index].state = .waiting }
             if hook.event == "stop" { next[index].state = .finished; next[index].updatedAt = hookDate }
         }
+        next.removeAll { $0.state == .finished && $0.updatedAt < cutoff }
 
         next.sort {
             let ranks: [MonitorState: Int] = [.waiting: 0, .running: 1, .finished: 2]
@@ -165,9 +170,16 @@ final class SessionMonitor: ObservableObject {
     private func bestMatch(for hook: HookRecord, in sessions: [AgentSession]) -> Int? {
         if let pid = hook.pid, let match = sessions.firstIndex(where: { $0.pid == pid }) { return match }
         let harness = Self.harness(for: hook.agent)
-        return sessions.firstIndex {
+        if let match = sessions.firstIndex(where: {
             $0.harness == harness && hook.projectPath != nil && $0.projectPath == hook.projectPath
-        }
+        }) { return match }
+
+        // Cursor Desktop's single Agents Window extension host reports `/` as
+        // its cwd and hook commands run in the workspace, so paths cannot match.
+        // Falling back is unambiguous when there is only one Cursor host.
+        guard harness == .cursor else { return nil }
+        let cursorMatches = sessions.indices.filter { sessions[$0].harness == .cursor }
+        return cursorMatches.count == 1 ? cursorMatches[0] : nil
     }
 
     nonisolated private static func discover(startedAtByPID: [Int: Date]) -> [AgentSession] {
@@ -194,7 +206,7 @@ final class SessionMonitor: ObservableObject {
                 harness: candidate.harness,
                 projectPath: cwdByPID[candidate.pid],
                 title: sidecar?.name,
-                startedAt: startedAtByPID[candidate.pid] ?? now,
+                startedAt: startedAtByPID[candidate.pid] ?? processStartDate(elapsed: candidate.elapsed, now: now),
                 updatedAt: sidecar?.updatedAt.map { Date(timeIntervalSince1970: $0 / 1000) } ?? now,
                 state: sidecar?.status == "idle" ? .waiting : .running
             )
@@ -356,6 +368,21 @@ final class SessionMonitor: ObservableObject {
             if args.range(of: #"\bcursor-agent\b"#, options: .regularExpression) != nil { return .cursor }
         }
         return nil
+    }
+
+    nonisolated private static func processStartDate(elapsed: String, now: Date) -> Date {
+        // ps etime is [[dd-]hh:]mm:ss.
+        let dayAndTime = elapsed.split(separator: "-", maxSplits: 1).map(String.init)
+        let days = dayAndTime.count == 2 ? (Double(dayAndTime[0]) ?? 0) : 0
+        let clock = (dayAndTime.last ?? elapsed).split(separator: ":").compactMap { Double($0) }
+        guard clock.count >= 2 else { return now }
+        let seconds: Double
+        if clock.count == 3 {
+            seconds = days * 86_400 + clock[0] * 3_600 + clock[1] * 60 + clock[2]
+        } else {
+            seconds = days * 86_400 + clock[0] * 60 + clock[1]
+        }
+        return now.addingTimeInterval(-seconds)
     }
 
     nonisolated private static func harness(for agent: String) -> Harness {

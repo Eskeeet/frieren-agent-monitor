@@ -41,11 +41,13 @@ def matcher_hooks(path, agent):
 
 def cursor_hooks(path):
     root = read(path)
+    root["version"] = 1
     hooks = root.setdefault("hooks", {})
-    stops = hooks.setdefault("stop", [])
-    command = f"{hook} cursor stop"
-    if not any(item.get("command") == command for item in stops):
-        stops.append({"type": "command", "command": command})
+    for event, arg in (("beforeSubmitPrompt", "start"), ("stop", "stop")):
+        entries = hooks.setdefault(event, [])
+        command = f"{hook} cursor {arg}"
+        if not any(item.get("command") == command for item in entries):
+            entries.append({"type": "command", "command": command})
     write(path, root)
 
 home = os.path.expanduser("~")
