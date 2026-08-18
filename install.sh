@@ -6,9 +6,10 @@ destination="${HOME}/Applications/Frieren Monitor.app"
 
 "$repo_root/build.sh"
 mkdir -p "${HOME}/Applications"
+pkill -x frieren-monitor 2>/dev/null || true
 rm -rf "$destination"
 ditto "$repo_root/build/Frieren Monitor.app" "$destination"
 "$repo_root/scripts/install-hooks.sh"
-open -n "$destination"
+open "$destination"
 
 echo "Installed: $destination"

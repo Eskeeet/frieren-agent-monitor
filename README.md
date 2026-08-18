@@ -53,9 +53,10 @@ hooks, and launch it in one step:
 Frieren discovers Claude Code and Cursor from local process and session data,
 and Codex from top-level rollout logs. Internal Codex subagent turns are folded
 into their parent task, while Cursor lifecycle hooks remain authoritative across
-restarts of its persistent Agents Window host. The hook installer copies its
-event script to `~/.frieren-monitor/hook.sh` and adds entries alongside existing
-hooks in:
+restarts of its persistent Agents Window host. Cursor rows use a short version
+of the latest submitted prompt as their session summary. The hook installer
+copies its event script to `~/.frieren-monitor/hook.sh` and adds entries alongside
+existing hooks in:
 
 - `~/.claude/settings.json`
 - `~/.codex/hooks.json`

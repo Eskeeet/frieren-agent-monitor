@@ -37,8 +37,8 @@ struct AgentSession: Identifiable, Equatable {
     let id: Int
     let pid: Int
     let harness: Harness
-    let projectPath: String?
-    let title: String?
+    var projectPath: String?
+    var title: String?
     let startedAt: Date
     var updatedAt: Date
     var state: MonitorState
@@ -47,7 +47,9 @@ struct AgentSession: Identifiable, Equatable {
         if let title, !title.isEmpty, title != "main-agent" { return title }
         if let projectPath, projectPath != "/" {
             let name = URL(fileURLWithPath: projectPath).lastPathComponent
-            if !name.isEmpty { return name }
+            // Cursor runs user hooks from its own configuration directory when
+            // it does not provide workspace metadata. That is not a session name.
+            if !name.isEmpty, !(harness == .cursor && name == ".cursor") { return name }
         }
         return harness.label
     }

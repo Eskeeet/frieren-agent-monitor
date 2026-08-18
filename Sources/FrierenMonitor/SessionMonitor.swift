@@ -13,6 +13,7 @@ private struct HookRecord: Decodable {
     let event: String
     let projectPath: String?
     let pid: Int?
+    let title: String?
 }
 
 private struct CodexRolloutRecord: Decodable {
@@ -163,6 +164,16 @@ final class SessionMonitor: ObservableObject {
         let foundPIDs = Set(discovered.map(\.pid))
         var next = discovered
 
+        // Process discovery has no user-facing title for Cursor. Keep metadata
+        // learned from its latest prompt hook across subsequent polling cycles.
+        for index in next.indices {
+            guard let old = previous.first(where: { $0.pid == next[index].pid }) else { continue }
+            if next[index].title == nil { next[index].title = old.title }
+            if next[index].projectPath == nil || next[index].projectPath == "/" {
+                next[index].projectPath = old.projectPath
+            }
+        }
+
         for session in discovered {
             startedAtByPID[session.pid] = startedAtByPID[session.pid] ?? session.startedAt
             finishedAtByPID.removeValue(forKey: session.pid)
@@ -189,7 +200,17 @@ final class SessionMonitor: ObservableObject {
             if next[index].harness != .cursor {
                 guard hookDate >= next[index].startedAt.addingTimeInterval(-2) else { continue }
             }
-            if hook.event == "start" { next[index].state = .running; next[index].updatedAt = hookDate }
+            if hook.event == "start" {
+                next[index].state = .running
+                next[index].updatedAt = hookDate
+                if let title = hook.title, !title.isEmpty { next[index].title = title }
+                if let projectPath = hook.projectPath,
+                   projectPath != "/",
+                   !(next[index].harness == .cursor
+                        && URL(fileURLWithPath: projectPath).lastPathComponent == ".cursor") {
+                    next[index].projectPath = projectPath
+                }
+            }
             if hook.event == "permission" { next[index].state = .waiting }
             if hook.event == "stop" { next[index].state = .finished; next[index].updatedAt = hookDate }
         }
