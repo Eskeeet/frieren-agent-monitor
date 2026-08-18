@@ -1,0 +1,8 @@
+build/
+.build/
+Package.resolved
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
