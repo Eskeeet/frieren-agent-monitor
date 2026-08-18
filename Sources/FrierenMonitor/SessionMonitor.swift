@@ -186,7 +186,9 @@ final class SessionMonitor: ObservableObject {
             // Process discovery only proves that a harness host exists. Cursor's
             // Agents Window host is persistent, so its latest lifecycle hook must
             // remain authoritative until a newer prompt starts another turn.
-            guard hookDate >= next[index].startedAt.addingTimeInterval(-2) else { continue }
+            if next[index].harness != .cursor {
+                guard hookDate >= next[index].startedAt.addingTimeInterval(-2) else { continue }
+            }
             if hook.event == "start" { next[index].state = .running; next[index].updatedAt = hookDate }
             if hook.event == "permission" { next[index].state = .waiting }
             if hook.event == "stop" { next[index].state = .finished; next[index].updatedAt = hookDate }
