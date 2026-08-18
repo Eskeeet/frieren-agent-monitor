@@ -15,7 +15,7 @@ agent sessions running locally or on remote machines reached through SSH.
 - Orange alert: a session needs input
 - Waving with a green halo: a session just finished
 - Idle: a live agent process is open but is not waiting for user input
-- Hover: reveal running, waiting, and recently finished sessions
+- Hover: reveal running, waiting, recently finished, and idle sessions
 - Click Frieren: play an interaction animation
 - Drag Frieren: move her around the desktop
 - Right-click Frieren: set up monitoring for a remote SSH machine
@@ -23,6 +23,8 @@ agent sessions running locally or on remote machines reached through SSH.
 - Click a remote session: open an SSH connection in the system terminal
 
 Waiting and completion events also appear briefly in a notification bubble.
+Idle sessions use a gray indicator, appear at the bottom of the list, and do
+not trigger a needs-input alert or count as active work.
 Session data stays on the Mac and explicitly configured SSH hosts; Frieren does
 not send it to an external service.
 
@@ -30,6 +32,7 @@ not send it to an external service.
 
 - macOS 13 or later
 - Swift 5.9 or later (Xcode or the Xcode Command Line Tools)
+- Remote monitoring: an SSH-reachable Linux or macOS machine with Python 3
 
 ## Build and run
 
@@ -72,13 +75,18 @@ agent sessions after installing hooks.
 ## Remote machines over SSH
 
 Remote monitoring uses the system OpenSSH client, including aliases, proxy
-jumps, keys, and host-key policy from `~/.ssh/config`. Password prompts are not
-supported; verify that `ssh <target>` works with key-based authentication first.
+jumps, keys, and other options from `~/.ssh/config`.
 
-Right-click Frieren and choose **Set Up Remote SSH…**. Enter an SSH target or
-alias, an optional display name, and an optional identity file, then click
-**Set Up**. Frieren installs the read-only collector and lifecycle hooks and
-registers the machine automatically.
+1. Verify that `ssh <target>` works using a key or `ssh-agent`.
+2. Right-click Frieren and choose **Set Up Remote SSH…**.
+3. Enter the SSH target or config alias, an optional display name, and an
+   optional identity file.
+4. Click **Set Up**.
+
+Frieren copies a small read-only collector to `~/.frieren-monitor` on the remote
+machine, adds lifecycle hooks alongside existing agent settings, and registers
+the host on the Mac. If the identity is already set by `~/.ssh/config`, leave
+the identity-file field blank.
 
 SSH must already work with a key or `ssh-agent`; interactive password prompts
 are not supported. New host keys are accepted on first connection, while
@@ -112,7 +120,8 @@ Hosts can also be configured manually:
 Frieren polls enabled hosts concurrently every eight seconds with batch-mode
 SSH and short connection timeouts. An unreachable host is shown as offline;
 its last-known active sessions are retained instead of being reported as
-finished. The collector supports Linux and macOS remote machines with Python 3.
+finished. Remote Claude processes reported as idle are shown separately at the
+bottom instead of being treated as needs-input sessions.
 
 ## License
 
