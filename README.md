@@ -1,8 +1,12 @@
-# Frieren Monitor
+# Frieren Agent Monitor
 
 A local, open-source macOS desktop companion for Claude Code, Codex, and Cursor.
 Frieren floats above the desktop without a dashboard frame and keeps an eye on
 local agent sessions.
+
+<p align="center">
+  <img src="Resources/frieren-spritesheet.png" alt="Frieren Agent Monitor animation sprites" width="420">
+</p>
 
 ## Behavior
 
@@ -47,8 +51,11 @@ hooks, and launch it in one step:
 ```
 
 Frieren discovers Claude Code and Cursor from local process and session data,
-and Codex from local rollout logs. The hook installer copies its event script to
-`~/.frieren-monitor/hook.sh` and adds entries alongside existing hooks in:
+and Codex from top-level rollout logs. Internal Codex subagent turns are folded
+into their parent task, while Cursor lifecycle hooks remain authoritative across
+restarts of its persistent Agents Window host. The hook installer copies its
+event script to `~/.frieren-monitor/hook.sh` and adds entries alongside existing
+hooks in:
 
 - `~/.claude/settings.json`
 - `~/.codex/hooks.json`
