@@ -24,8 +24,12 @@ struct PetView: View {
     @State private var alertDismissID = 0
     @State private var showingRemoteSetup = false
 
-    private var expanded: Bool { hoveringPet || hoveringCard }
-    private var panelExpanded: Bool { expanded || petAlert != nil || showingRemoteSetup }
+    private var expanded: Bool {
+        !motion.isDragging && (hoveringPet || hoveringCard)
+    }
+    private var panelExpanded: Bool {
+        expanded || motion.isDragging || petAlert != nil || showingRemoteSetup
+    }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {

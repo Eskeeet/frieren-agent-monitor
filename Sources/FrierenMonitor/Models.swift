@@ -81,6 +81,8 @@ final class PetMotion: ObservableObject {
     @Published private(set) var dragDirection: PetTravelDirection?
     private var lastDirection: PetTravelDirection = .right
 
+    var isDragging: Bool { dragDirection != nil }
+
     func updateDrag(deltaX: CGFloat, deltaY: CGFloat) {
         guard abs(deltaX) + abs(deltaY) > 0.25 else { return }
         if abs(deltaX) > 0.25 {
