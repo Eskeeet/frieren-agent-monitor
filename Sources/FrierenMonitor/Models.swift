@@ -73,7 +73,7 @@ enum PetMood: Hashable {
     case sleeping, watching, working, needsInput, celebrating
 }
 
-enum PetTravelDirection {
+enum PetTravelDirection: Equatable {
     case left, right
 }
 

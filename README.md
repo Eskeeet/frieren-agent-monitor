@@ -13,9 +13,10 @@ agent sessions running locally or on remote machines reached through SSH.
 - Sleeping: no active sessions
 - Walking: one or more sessions are running
 - Orange alert: a session needs input
-- Waving with a green halo: a session just finished
+- Jumping with a green halo: a session just finished
 - Idle: a live agent process is open but is not waiting for user input
 - Hover: reveal running, waiting, recently finished, and idle sessions
+- Quiet time: say hi after two minutes without interaction or new session activity
 - Click Frieren: play an interaction animation
 - Drag Frieren: move her around the desktop
 - Right-click Frieren: set up monitoring for a remote SSH machine

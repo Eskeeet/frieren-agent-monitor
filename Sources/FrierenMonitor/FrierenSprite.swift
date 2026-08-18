@@ -2,9 +2,9 @@ import AppKit
 import SwiftUI
 
 private enum SpriteAnimation {
-    case idle, runLeft, runRight, wave
+    case idle, runLeft, runRight, hi
     case reactionOne, reactionTwo, reactionThree
-    case needsPrompt, celebrating
+    case needsPrompt, jump
 }
 
 struct FrierenSprite: View {
@@ -14,6 +14,7 @@ struct FrierenSprite: View {
     let runningSessionCount: Int
     let reactingToClick: Bool
     let clickVariant: Int
+    let sayingHi: Bool
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: interval)) { timeline in
@@ -42,6 +43,7 @@ struct FrierenSprite: View {
     private var interval: TimeInterval {
         if travelDirection != nil { return 0.075 }
         if reactingToClick { return 0.14 }
+        if sayingHi { return 0.2 }
         if hovered { return 0.2 }
         if mood == .needsInput { return 0.32 }
         if mood == .celebrating { return 0.22 }
@@ -60,9 +62,9 @@ struct FrierenSprite: View {
             default: return .reactionThree
             }
         }
-        if hovered { return .wave }
+        if hovered || sayingHi { return .hi }
         if mood == .needsInput { return .needsPrompt }
-        if mood == .celebrating { return .celebrating }
+        if mood == .celebrating { return .jump }
         if runningSessionCount > 3 {
             let phase = Int(date.timeIntervalSinceReferenceDate / 1.6)
             return phase.isMultiple(of: 2) ? .runLeft : .runRight
@@ -93,6 +95,7 @@ struct FrierenSprite: View {
         }
         if reactingToClick { return "Frieren: reacting" }
         if hovered { return "Frieren: waving" }
+        if sayingHi { return "Frieren: saying hi" }
         if runningSessionCount > 3 { return "Frieren: running with busy sessions" }
         switch mood {
         case .sleeping: return "Frieren: no active sessions"
@@ -112,12 +115,12 @@ private enum SpriteAtlas {
         .idle: (0...5).map { Cell(row: 0, column: $0) },
         .runLeft: (0...7).map { Cell(row: 2, column: $0) },
         .runRight: (0...7).map { Cell(row: 1, column: $0) },
-        .wave: (0...3).map { Cell(row: 3, column: $0) },
+        .hi: (0...3).map { Cell(row: 3, column: $0) },
         .reactionOne: (0...5).map { Cell(row: 7, column: $0) },
         .reactionTwo: (0...5).map { Cell(row: 8, column: $0) },
         .reactionThree: (0...4).map { Cell(row: 4, column: $0) },
         .needsPrompt: [Cell(row: 8, column: 4), Cell(row: 8, column: 5)],
-        .celebrating: (0...3).map { Cell(row: 3, column: $0) },
+        .jump: (0...4).map { Cell(row: 4, column: $0) },
     ]
 
     private static let cache: [Cell: NSImage] = {

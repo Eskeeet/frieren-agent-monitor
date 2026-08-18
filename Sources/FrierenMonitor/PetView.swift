@@ -18,11 +18,16 @@ struct PetView: View {
     @State private var hoveringPet = false
     @State private var hoveringCard = false
     @State private var reactingToClick = false
+    @State private var sayingHi = false
     @State private var reactionID = 0
     @State private var clickVariant = 0
     @State private var dismissedAlertKey: String?
     @State private var alertDismissID = 0
     @State private var showingRemoteSetup = false
+    @State private var inactivityID = 0
+    @State private var knownSessionStates: [String: MonitorState] = [:]
+
+    private let inactivityInterval: TimeInterval = 2 * 60
 
     private var expanded: Bool {
         !motion.isDragging && (hoveringPet || hoveringCard)
@@ -40,7 +45,10 @@ struct PetView: View {
                     .padding(.trailing, 112)
                     .padding(.bottom, 18)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
-                    .onHover { hoveringCard = $0 }
+                    .onHover {
+                        hoveringCard = $0
+                        if $0 { recordInteraction() }
+                    }
             } else if let alert = petAlert {
                 alertBubble(alert)
                     .frame(width: 230)
@@ -51,7 +59,10 @@ struct PetView: View {
             pet
                 .frame(width: 126, height: 150)
                 .contentShape(Rectangle())
-                .onHover { hoveringPet = $0 }
+                .onHover {
+                    hoveringPet = $0
+                    if $0 { recordInteraction() }
+                }
                 .padding(.trailing, 6)
                 .padding(.bottom, 4)
         }
@@ -59,7 +70,15 @@ struct PetView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.82), value: panelExpanded)
         .onChange(of: panelExpanded) { setExpanded($0) }
         .onChange(of: currentAlertKey) { scheduleAlertDismissal(for: $0) }
-        .onAppear { scheduleAlertDismissal(for: currentAlertKey) }
+        .onChange(of: motion.dragDirection) { direction in
+            if direction != nil { recordInteraction() }
+        }
+        .onChange(of: monitor.sessions) { handleSessionChanges($0) }
+        .onAppear {
+            knownSessionStates = Dictionary(uniqueKeysWithValues: monitor.sessions.map { ($0.id, $0.state) })
+            scheduleAlertDismissal(for: currentAlertKey)
+            restartInactivityTimer()
+        }
         .sheet(isPresented: $showingRemoteSetup) {
             RemoteSetupView {
                 monitor.refresh()
@@ -76,7 +95,8 @@ struct PetView: View {
                 travelDirection: motion.dragDirection,
                 runningSessionCount: monitor.liveSessions.filter { $0.state == .running }.count,
                 reactingToClick: reactingToClick,
-                clickVariant: clickVariant
+                clickVariant: clickVariant,
+                sayingHi: sayingHi
             )
             if monitor.liveSessions.contains(where: { $0.state == .waiting }) {
                 Text("!")
@@ -91,6 +111,7 @@ struct PetView: View {
         .simultaneousGesture(TapGesture().onEnded { playClickReaction() })
         .contextMenu {
             Button("Set Up Remote SSH…") {
+                recordInteraction()
                 NSApplication.shared.activate(ignoringOtherApps: true)
                 showingRemoteSetup = true
             }
@@ -101,6 +122,7 @@ struct PetView: View {
     }
 
     private func playClickReaction() {
+        recordInteraction()
         reactionID += 1
         clickVariant = (clickVariant + 1) % 3
         let currentReaction = reactionID
@@ -108,6 +130,38 @@ struct PetView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) {
             guard reactionID == currentReaction else { return }
             reactingToClick = false
+        }
+    }
+
+    private func recordInteraction() {
+        restartInactivityTimer()
+    }
+
+    private func handleSessionChanges(_ sessions: [AgentSession]) {
+        let nextStates = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.state) })
+        let hasNewSession = nextStates.keys.contains { knownSessionStates[$0] == nil }
+        let hasNewFinishedSession = sessions.contains {
+            $0.state == .finished && knownSessionStates[$0.id] != .finished
+        }
+        knownSessionStates = nextStates
+        if hasNewSession || hasNewFinishedSession { restartInactivityTimer() }
+    }
+
+    private func restartInactivityTimer() {
+        inactivityID += 1
+        sayingHi = false
+        scheduleHi(for: inactivityID)
+    }
+
+    private func scheduleHi(for id: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + inactivityInterval) {
+            guard inactivityID == id else { return }
+            sayingHi = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) {
+                guard inactivityID == id else { return }
+                sayingHi = false
+            }
+            scheduleHi(for: id)
         }
     }
 
@@ -205,7 +259,10 @@ struct PetView: View {
                     Text(summary).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { monitor.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                Button {
+                    recordInteraction()
+                    monitor.refresh()
+                } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.plain).help("Refresh")
                 Button(action: quit) {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
@@ -237,7 +294,10 @@ struct PetView: View {
     }
 
     private func sessionRow(_ session: AgentSession) -> some View {
-        Button { monitor.focus(session) } label: {
+        Button {
+            recordInteraction()
+            monitor.focus(session)
+        } label: {
             HStack(spacing: 9) {
                 Circle().fill(statusColor(session.state)).frame(width: 8, height: 8)
                     .shadow(color: statusColor(session.state).opacity(0.6), radius: 4)
