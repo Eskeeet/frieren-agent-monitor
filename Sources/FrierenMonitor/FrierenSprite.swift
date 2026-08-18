@@ -1,13 +1,24 @@
 import AppKit
 import SwiftUI
 
+private enum SpriteAnimation {
+    case idle, runLeft, runRight, wave
+    case reactionOne, reactionTwo, reactionThree
+    case needsPrompt, celebrating
+}
+
 struct FrierenSprite: View {
     let mood: PetMood
     let hovered: Bool
+    let travelDirection: PetTravelDirection?
+    let runningSessionCount: Int
+    let reactingToClick: Bool
+    let clickVariant: Int
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: interval)) { timeline in
-            let frames = SpriteAtlas.frames(for: mood)
+            let animation = animation(at: timeline.date)
+            let frames = SpriteAtlas.frames(for: animation)
             let index = Int(timeline.date.timeIntervalSinceReferenceDate / interval) % max(frames.count, 1)
             Group {
                 if frames.indices.contains(index) {
@@ -29,13 +40,34 @@ struct FrierenSprite: View {
     }
 
     private var interval: TimeInterval {
-        switch mood {
-        case .working: return 0.12
-        case .needsInput: return 0.4
-        case .celebrating: return 0.32
-        case .watching: return 0.72
-        case .sleeping: return 0.85
+        if travelDirection != nil { return 0.075 }
+        if reactingToClick { return 0.14 }
+        if hovered { return 0.2 }
+        if mood == .needsInput { return 0.32 }
+        if mood == .celebrating { return 0.22 }
+        if runningSessionCount > 3 { return 0.09 }
+        return 0.72
+    }
+
+    private func animation(at date: Date) -> SpriteAnimation {
+        if let travelDirection {
+            return travelDirection == .left ? .runLeft : .runRight
         }
+        if reactingToClick {
+            switch clickVariant % 3 {
+            case 0: return .reactionOne
+            case 1: return .reactionTwo
+            default: return .reactionThree
+            }
+        }
+        if hovered { return .wave }
+        if mood == .needsInput { return .needsPrompt }
+        if mood == .celebrating { return .celebrating }
+        if runningSessionCount > 3 {
+            let phase = Int(date.timeIntervalSinceReferenceDate / 1.6)
+            return phase.isMultiple(of: 2) ? .runLeft : .runRight
+        }
+        return .idle
     }
 
     private var haloColor: Color {
@@ -56,6 +88,12 @@ struct FrierenSprite: View {
     }
 
     private var accessibilityLabel: String {
+        if let travelDirection {
+            return "Frieren: running \(travelDirection == .left ? "left" : "right")"
+        }
+        if reactingToClick { return "Frieren: reacting" }
+        if hovered { return "Frieren: waving" }
+        if runningSessionCount > 3 { return "Frieren: running with busy sessions" }
         switch mood {
         case .sleeping: return "Frieren: no active sessions"
         case .watching: return "Frieren: watching sessions"
@@ -70,11 +108,15 @@ private enum SpriteAtlas {
     private struct Cell: Hashable { let row: Int; let column: Int }
     private static let cellWidth = 192
     private static let cellHeight = 208
-    private static let cells: [PetMood: [Cell]] = [
-        .sleeping: (1...6).map { Cell(row: 5, column: $0) },
-        .watching: (0...5).map { Cell(row: 0, column: $0) },
-        .working: (0...7).map { Cell(row: 1, column: $0) },
-        .needsInput: [Cell(row: 8, column: 4), Cell(row: 8, column: 5)],
+    private static let animationCells: [SpriteAnimation: [Cell]] = [
+        .idle: (0...5).map { Cell(row: 0, column: $0) },
+        .runLeft: (0...7).map { Cell(row: 2, column: $0) },
+        .runRight: (0...7).map { Cell(row: 1, column: $0) },
+        .wave: (0...3).map { Cell(row: 3, column: $0) },
+        .reactionOne: (0...5).map { Cell(row: 7, column: $0) },
+        .reactionTwo: (0...5).map { Cell(row: 8, column: $0) },
+        .reactionThree: (0...4).map { Cell(row: 4, column: $0) },
+        .needsPrompt: [Cell(row: 8, column: 4), Cell(row: 8, column: 5)],
         .celebrating: (0...3).map { Cell(row: 3, column: $0) },
     ]
 
@@ -83,7 +125,7 @@ private enum SpriteAtlas {
               let source = NSImage(contentsOf: url),
               let image = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return [:] }
         var result: [Cell: NSImage] = [:]
-        for cell in Set(cells.values.flatMap { $0 }) {
+        for cell in Set(animationCells.values.flatMap { $0 }) {
             let rect = CGRect(x: cell.column * cellWidth, y: cell.row * cellHeight,
                               width: cellWidth, height: cellHeight)
             guard let crop = image.cropping(to: rect) else { continue }
@@ -92,7 +134,7 @@ private enum SpriteAtlas {
         return result
     }()
 
-    static func frames(for mood: PetMood) -> [NSImage] {
-        (cells[mood] ?? []).compactMap { cache[$0] }
+    static func frames(for animation: SpriteAnimation) -> [NSImage] {
+        return (animationCells[animation] ?? []).compactMap { cache[$0] }
     }
 }

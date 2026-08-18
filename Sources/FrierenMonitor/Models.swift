@@ -56,3 +56,24 @@ struct AgentSession: Identifiable, Equatable {
 enum PetMood: Hashable {
     case sleeping, watching, working, needsInput, celebrating
 }
+
+enum PetTravelDirection {
+    case left, right
+}
+
+final class PetMotion: ObservableObject {
+    @Published private(set) var dragDirection: PetTravelDirection?
+    private var lastDirection: PetTravelDirection = .right
+
+    func updateDrag(deltaX: CGFloat, deltaY: CGFloat) {
+        guard abs(deltaX) + abs(deltaY) > 0.25 else { return }
+        if abs(deltaX) > 0.25 {
+            lastDirection = deltaX < 0 ? .left : .right
+        }
+        dragDirection = lastDirection
+    }
+
+    func endDrag() {
+        dragDirection = nil
+    }
+}

@@ -2,6 +2,11 @@ import AppKit
 import SwiftUI
 
 final class PetPanel: NSPanel {
+    var onPetDragged: ((CGFloat, CGFloat) -> Void)?
+    var onPetDragEnded: (() -> Void)?
+    private var trackingPetDrag = false
+    private var lastMouseLocation: NSPoint?
+
     init(frame: NSRect) {
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)
@@ -16,12 +21,35 @@ final class PetPanel: NSPanel {
     }
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:
+            let point = event.locationInWindow
+            trackingPetDrag = point.x >= frame.width - 140 && point.y <= 170
+            lastMouseLocation = trackingPetDrag ? NSEvent.mouseLocation : nil
+        case .leftMouseDragged where trackingPetDrag:
+            let location = NSEvent.mouseLocation
+            if let previous = lastMouseLocation {
+                onPetDragged?(location.x - previous.x, location.y - previous.y)
+            }
+            lastMouseLocation = location
+        case .leftMouseUp:
+            if trackingPetDrag { onPetDragEnded?() }
+            trackingPetDrag = false
+            lastMouseLocation = nil
+        default:
+            break
+        }
+        super.sendEvent(event)
+    }
 }
 
 final class AppController: NSObject, NSApplicationDelegate {
     private static let collapsedSize = NSSize(width: 140, height: 170)
     private static let expandedSize = NSSize(width: 430, height: 260)
     private let monitor = SessionMonitor()
+    private let motion = PetMotion()
     private var panel: PetPanel!
     private var collapseWorkItem: DispatchWorkItem?
 
@@ -30,8 +58,13 @@ final class AppController: NSObject, NSApplicationDelegate {
         let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let origin = NSPoint(x: visible.maxX - size.width - 18, y: visible.minY + 18)
         panel = PetPanel(frame: NSRect(origin: origin, size: size))
+        panel.onPetDragged = { [weak self] deltaX, deltaY in
+            self?.motion.updateDrag(deltaX: deltaX, deltaY: deltaY)
+        }
+        panel.onPetDragEnded = { [weak self] in self?.motion.endDrag() }
         let host = NSHostingView(rootView: PetView(
             monitor: monitor,
+            motion: motion,
             quit: { NSApplication.shared.terminate(nil) },
             setExpanded: { [weak self] expanded in self?.setExpanded(expanded) }
         ))

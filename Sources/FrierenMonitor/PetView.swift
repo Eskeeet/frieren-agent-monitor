@@ -1,14 +1,29 @@
 import AppKit
 import SwiftUI
 
+private struct PetAlert {
+    let key: String
+    let title: String
+    let detail: String
+    let icon: String
+    let color: Color
+}
+
 struct PetView: View {
     @ObservedObject var monitor: SessionMonitor
+    @ObservedObject var motion: PetMotion
     let quit: () -> Void
     let setExpanded: (Bool) -> Void
     @State private var hoveringPet = false
     @State private var hoveringCard = false
+    @State private var reactingToClick = false
+    @State private var reactionID = 0
+    @State private var clickVariant = 0
+    @State private var dismissedAlertKey: String?
+    @State private var alertDismissID = 0
 
     private var expanded: Bool { hoveringPet || hoveringCard }
+    private var panelExpanded: Bool { expanded || petAlert != nil }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -20,6 +35,12 @@ struct PetView: View {
                     .padding(.bottom, 18)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                     .onHover { hoveringCard = $0 }
+            } else if let alert = petAlert {
+                alertBubble(alert)
+                    .frame(width: 230)
+                    .padding(.trailing, 108)
+                    .padding(.bottom, 102)
+                    .transition(.scale(scale: 0.85, anchor: .bottomTrailing).combined(with: .opacity))
             }
             pet
                 .frame(width: 126, height: 150)
@@ -29,13 +50,22 @@ struct PetView: View {
                 .padding(.bottom, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: expanded)
-        .onChange(of: expanded) { setExpanded($0) }
+        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: panelExpanded)
+        .onChange(of: panelExpanded) { setExpanded($0) }
+        .onChange(of: currentAlertKey) { scheduleAlertDismissal(for: $0) }
+        .onAppear { scheduleAlertDismissal(for: currentAlertKey) }
     }
 
     private var pet: some View {
         ZStack(alignment: .topTrailing) {
-            FrierenSprite(mood: monitor.mood, hovered: hoveringPet)
+            FrierenSprite(
+                mood: monitor.mood,
+                hovered: hoveringPet,
+                travelDirection: motion.dragDirection,
+                runningSessionCount: monitor.liveSessions.filter { $0.state == .running }.count,
+                reactingToClick: reactingToClick,
+                clickVariant: clickVariant
+            )
             if monitor.liveSessions.contains(where: { $0.state == .waiting }) {
                 Text("!")
                     .font(.system(size: 13, weight: .black, design: .rounded))
@@ -46,7 +76,87 @@ struct PetView: View {
                     .offset(x: -3, y: 5)
             }
         }
-        .help("Hover to see agent sessions")
+        .simultaneousGesture(TapGesture().onEnded { playClickReaction() })
+        .help("Hover to see agent sessions · Click to interact")
+    }
+
+    private func playClickReaction() {
+        reactionID += 1
+        clickVariant = (clickVariant + 1) % 3
+        let currentReaction = reactionID
+        reactingToClick = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) {
+            guard reactionID == currentReaction else { return }
+            reactingToClick = false
+        }
+    }
+
+    private var currentAlert: PetAlert? {
+        if let waiting = monitor.liveSessions.first(where: { $0.state == .waiting }) {
+            return PetAlert(
+                key: "waiting-\(waiting.id)",
+                title: "Prompt needed",
+                detail: waiting.displayName,
+                icon: "exclamationmark.bubble.fill",
+                color: .orange
+            )
+        }
+        if let finished = monitor.sessions.first(where: {
+            $0.state == .finished
+                && Date().timeIntervalSince($0.updatedAt) < SessionMonitor.celebrationWindow
+        }) {
+            return PetAlert(
+                key: "finished-\(finished.id)",
+                title: "Session finished!",
+                detail: finished.displayName,
+                icon: "checkmark.circle.fill",
+                color: .green
+            )
+        }
+        return nil
+    }
+
+    private var currentAlertKey: String? { currentAlert?.key }
+
+    private var petAlert: PetAlert? {
+        guard let alert = currentAlert, alert.key != dismissedAlertKey else { return nil }
+        return alert
+    }
+
+    private func scheduleAlertDismissal(for key: String?) {
+        alertDismissID += 1
+        let dismissalID = alertDismissID
+        dismissedAlertKey = nil
+        guard let key else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            guard alertDismissID == dismissalID else { return }
+            dismissedAlertKey = key
+        }
+    }
+
+    private func alertBubble(_ alert: PetAlert) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: alert.icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(alert.color)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(alert.title)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                Text(alert.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(alert.color.opacity(0.55), lineWidth: 1.5)
+        }
+        .shadow(color: alert.color.opacity(0.25), radius: 12, y: 5)
     }
 
     private var sessionCard: some View {
