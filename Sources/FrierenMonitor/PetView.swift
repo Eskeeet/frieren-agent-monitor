@@ -22,9 +22,10 @@ struct PetView: View {
     @State private var clickVariant = 0
     @State private var dismissedAlertKey: String?
     @State private var alertDismissID = 0
+    @State private var showingRemoteSetup = false
 
     private var expanded: Bool { hoveringPet || hoveringCard }
-    private var panelExpanded: Bool { expanded || petAlert != nil }
+    private var panelExpanded: Bool { expanded || petAlert != nil || showingRemoteSetup }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -55,6 +56,12 @@ struct PetView: View {
         .onChange(of: panelExpanded) { setExpanded($0) }
         .onChange(of: currentAlertKey) { scheduleAlertDismissal(for: $0) }
         .onAppear { scheduleAlertDismissal(for: currentAlertKey) }
+        .sheet(isPresented: $showingRemoteSetup) {
+            RemoteSetupView {
+                monitor.refresh()
+                showingRemoteSetup = false
+            }
+        }
     }
 
     private var pet: some View {
@@ -78,7 +85,15 @@ struct PetView: View {
             }
         }
         .simultaneousGesture(TapGesture().onEnded { playClickReaction() })
-        .help("Hover to see agent sessions · Click to interact")
+        .contextMenu {
+            Button("Set Up Remote SSH…") {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                showingRemoteSetup = true
+            }
+            Divider()
+            Button("Quit Frieren Monitor", action: quit)
+        }
+        .help("Hover to see sessions · Right-click for remote SSH setup")
     }
 
     private func playClickReaction() {
@@ -194,10 +209,10 @@ struct PetView: View {
             }
             .padding(14)
             Divider().opacity(0.4)
-            if monitor.sessions.isEmpty {
+            if monitor.sessions.isEmpty && monitor.remoteHosts.allSatisfy(\.isOnline) {
                 VStack(spacing: 8) {
                     Image(systemName: "moon.zzz").font(.title2).foregroundStyle(.secondary)
-                    Text("No local agent sessions").font(.subheadline)
+                    Text("No active agent sessions").font(.subheadline)
                     Text("Claude Code · Codex · Cursor")
                         .font(.caption2.monospaced()).foregroundStyle(.tertiary)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -205,6 +220,9 @@ struct PetView: View {
                 ScrollView {
                     LazyVStack(spacing: 5) {
                         ForEach(monitor.sessions) { session in sessionRow(session) }
+                        ForEach(monitor.remoteHosts.filter { !$0.isOnline }) { host in
+                            offlineHostRow(host)
+                        }
                     }.padding(9)
                 }
             }
@@ -221,12 +239,13 @@ struct PetView: View {
                     .shadow(color: statusColor(session.state).opacity(0.6), radius: 4)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.displayName).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                    Text("\(session.harness.label) · \(session.state.label)")
+                    Text(sessionDetail(session))
                         .font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if session.state != .finished {
-                    Image(systemName: "arrow.up.forward.square").font(.caption).foregroundStyle(.tertiary)
+                    Image(systemName: session.isRemote ? "terminal" : "arrow.up.forward.square")
+                        .font(.caption).foregroundStyle(.tertiary)
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
@@ -236,15 +255,43 @@ struct PetView: View {
         }
         .buttonStyle(.plain)
         .disabled(session.state == .finished)
-        .help("Open \(session.harness.label)")
+        .help(session.isRemote ? "Connect to \(session.remoteHost ?? "remote host") with SSH" : "Open \(session.harness.label)")
+    }
+
+    private func sessionDetail(_ session: AgentSession) -> String {
+        if session.isRemote && !monitor.isSourceOnline(session) {
+            return "\(session.harness.label) · Last seen \(session.state.label.lowercased()) · \(session.remoteHost ?? "remote")"
+        }
+        let base = "\(session.harness.label) · \(session.state.label)"
+        return session.remoteHost.map { "\(base) · \($0)" } ?? base
+    }
+
+    private func offlineHostRow(_ host: RemoteHostStatus) -> some View {
+        HStack(spacing: 9) {
+            Circle().fill(Color.red).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(host.id).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Text("Remote host · Offline")
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "wifi.slash").font(.caption).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.red.opacity(0.08)))
+        .help(host.error ?? "SSH connection failed")
     }
 
     private var summary: String {
         let waiting = monitor.liveSessions.filter { $0.state == .waiting }.count
         if waiting > 0 { return "\(waiting) need\(waiting == 1 ? "s" : "") your input" }
-        let running = monitor.liveSessions.count
+        let running = monitor.liveSessions.filter { $0.state == .running }.count
         if running > 0 { return "\(running) active" }
+        let offline = monitor.remoteHosts.filter { !$0.isOnline }.count
+        if offline > 0 { return "\(offline) remote host\(offline == 1 ? "" : "s") offline" }
         if monitor.sessions.contains(where: { $0.state == .finished }) { return "Recent work finished" }
+        let idle = monitor.liveSessions.filter { $0.state == .idle }.count
+        if idle > 0 { return "\(idle) idle" }
         return "Frieren is resting"
     }
 
@@ -253,6 +300,7 @@ struct PetView: View {
         case .running: return .cyan
         case .waiting: return .orange
         case .finished: return .green
+        case .idle: return .gray
         }
     }
 }

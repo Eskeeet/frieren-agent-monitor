@@ -81,19 +81,27 @@ private struct CodexSessionIndexRecord: Decodable {
 
 final class SessionMonitor: ObservableObject {
     @Published private(set) var sessions: [AgentSession] = []
+    @Published private(set) var remoteHosts: [RemoteHostStatus] = []
     @Published private(set) var lastScan = Date.distantPast
 
     private var timer: Timer?
     private let queue = DispatchQueue(label: "frieren-monitor.sessions", qos: .utility)
-    private var startedAtByPID: [Int: Date] = [:]
-    private var finishedAtByPID: [Int: Date] = [:]
+    private var startedAtByID: [String: Date] = [:]
+    private var finishedAtByID: [String: Date] = [:]
 
     static let finishedRetention: TimeInterval = 10 * 60
     static let celebrationWindow: TimeInterval = 30
     private static let codexScanWindow: TimeInterval = 24 * 60 * 60
     private static let codexTailBytes: UInt64 = 512 * 1024
 
-    var liveSessions: [AgentSession] { sessions.filter { $0.state != .finished } }
+    var liveSessions: [AgentSession] {
+        sessions.filter { $0.state != .finished && isSourceOnline($0) }
+    }
+
+    func isSourceOnline(_ session: AgentSession) -> Bool {
+        guard let host = session.remoteHost else { return true }
+        return remoteHosts.first(where: { $0.id == host })?.isOnline == true
+    }
 
     var mood: PetMood {
         if liveSessions.contains(where: { $0.state == .waiting }) { return .needsInput }
@@ -115,15 +123,31 @@ final class SessionMonitor: ObservableObject {
 
     func refresh() {
         let previous = sessions
-        let starts = startedAtByPID
+        let starts = startedAtByID
         queue.async { [weak self] in
             let snapshot = Self.discover(startedAtByPID: starts)
             let hooks = Self.readHookRecords()
-            DispatchQueue.main.async { self?.merge(previous: previous, discovered: snapshot, hooks: hooks) }
+            let remoteScans = RemoteSessionSource.scanAll()
+            DispatchQueue.main.async {
+                self?.remoteHosts = remoteScans.map(\.status)
+                self?.merge(
+                    previous: previous,
+                    discovered: snapshot + remoteScans.flatMap(\.sessions),
+                    hooks: hooks,
+                    knownSources: Set(["local"] + remoteScans.map { "remote:\($0.status.id)" }),
+                    scannedSources: Set(
+                        ["local"] + remoteScans.filter(\.status.isOnline).map { "remote:\($0.status.id)" }
+                    )
+                )
+            }
         }
     }
 
     func focus(_ session: AgentSession) {
+        if let target = session.sshTarget {
+            openSSH(target)
+            return
+        }
         let bundleIdentifier: String?
         switch session.harness {
         case .codex:
@@ -137,6 +161,11 @@ final class SessionMonitor: ObservableObject {
         if let bundleIdentifier, activateApplication(bundleIdentifier: bundleIdentifier) { return }
         guard let path = session.projectPath else { return }
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
+    private func openSSH(_ target: String) {
+        guard let url = URL(string: "ssh://\(target)") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private func activateApplication(bundleIdentifier: String) -> Bool {
@@ -159,15 +188,21 @@ final class SessionMonitor: ObservableObject {
         return true
     }
 
-    private func merge(previous: [AgentSession], discovered: [AgentSession], hooks: [HookRecord]) {
+    private func merge(
+        previous: [AgentSession],
+        discovered: [AgentSession],
+        hooks: [HookRecord],
+        knownSources: Set<String>,
+        scannedSources: Set<String>
+    ) {
         let now = Date()
-        let foundPIDs = Set(discovered.map(\.pid))
+        let foundIDs = Set(discovered.map(\.id))
         var next = discovered
 
         // Process discovery has no user-facing title for Cursor. Keep metadata
         // learned from its latest prompt hook across subsequent polling cycles.
         for index in next.indices {
-            guard let old = previous.first(where: { $0.pid == next[index].pid }) else { continue }
+            guard let old = previous.first(where: { $0.id == next[index].id }) else { continue }
             if next[index].title == nil { next[index].title = old.title }
             if next[index].projectPath == nil || next[index].projectPath == "/" {
                 next[index].projectPath = old.projectPath
@@ -175,20 +210,30 @@ final class SessionMonitor: ObservableObject {
         }
 
         for session in discovered {
-            startedAtByPID[session.pid] = startedAtByPID[session.pid] ?? session.startedAt
-            finishedAtByPID.removeValue(forKey: session.pid)
+            startedAtByID[session.id] = startedAtByID[session.id] ?? session.startedAt
+            finishedAtByID.removeValue(forKey: session.id)
         }
-        for old in previous where old.state != .finished && !foundPIDs.contains(old.pid) {
-            let finishedAt = finishedAtByPID[old.pid] ?? now
-            finishedAtByPID[old.pid] = finishedAt
+        for old in previous where old.state != .finished && !foundIDs.contains(old.id) {
+            // Removing a host from configuration removes its stale sessions.
+            guard knownSources.contains(old.sourceID) else { continue }
+            // A failed SSH scan says nothing about lifecycle. Retain the last
+            // known state until that host becomes reachable again.
+            guard scannedSources.contains(old.sourceID) else {
+                next.append(old)
+                continue
+            }
+            let finishedAt = finishedAtByID[old.id] ?? now
+            finishedAtByID[old.id] = finishedAt
             var copy = old
             copy.state = .finished
             copy.updatedAt = finishedAt
             next.append(copy)
         }
         let cutoff = now.addingTimeInterval(-Self.finishedRetention)
-        for old in previous where old.state == .finished && old.updatedAt >= cutoff {
-            if !next.contains(where: { $0.pid == old.pid }) { next.append(old) }
+        for old in previous where old.state == .finished
+            && old.updatedAt >= cutoff
+            && knownSources.contains(old.sourceID) {
+            if !next.contains(where: { $0.id == old.id }) { next.append(old) }
         }
 
         for hook in hooks {
@@ -217,7 +262,7 @@ final class SessionMonitor: ObservableObject {
         next.removeAll { $0.state == .finished && $0.updatedAt < cutoff }
 
         next.sort {
-            let ranks: [MonitorState: Int] = [.waiting: 0, .running: 1, .finished: 2]
+            let ranks: [MonitorState: Int] = [.waiting: 0, .running: 1, .finished: 2, .idle: 3]
             let lhs = ranks[$0.state] ?? 3, rhs = ranks[$1.state] ?? 3
             return lhs == rhs ? $0.updatedAt > $1.updatedAt : lhs < rhs
         }
@@ -226,21 +271,22 @@ final class SessionMonitor: ObservableObject {
     }
 
     private func bestMatch(for hook: HookRecord, in sessions: [AgentSession]) -> Int? {
-        if let pid = hook.pid, let match = sessions.firstIndex(where: { $0.pid == pid }) { return match }
+        if let pid = hook.pid,
+           let match = sessions.firstIndex(where: { !$0.isRemote && $0.pid == pid }) { return match }
         let harness = Self.harness(for: hook.agent)
         if let match = sessions.firstIndex(where: {
-            $0.harness == harness && hook.projectPath != nil && $0.projectPath == hook.projectPath
+            !$0.isRemote && $0.harness == harness && hook.projectPath != nil && $0.projectPath == hook.projectPath
         }) { return match }
 
         // Cursor Desktop's single Agents Window extension host reports `/` as
         // its cwd and hook commands run in the workspace, so paths cannot match.
         // Falling back is unambiguous when there is only one Cursor host.
         guard harness == .cursor else { return nil }
-        let cursorMatches = sessions.indices.filter { sessions[$0].harness == .cursor }
+        let cursorMatches = sessions.indices.filter { !sessions[$0].isRemote && sessions[$0].harness == .cursor }
         return cursorMatches.count == 1 ? cursorMatches[0] : nil
     }
 
-    nonisolated private static func discover(startedAtByPID: [Int: Date]) -> [AgentSession] {
+    nonisolated private static func discover(startedAtByPID: [String: Date]) -> [AgentSession] {
         let output = ProcessRunner.read("/bin/ps", ["-axo", "pid=,etime=,tty=,args="])
         var candidates: [(pid: Int, elapsed: String, harness: Harness)] = []
         for raw in output.split(separator: "\n") {
@@ -258,15 +304,18 @@ final class SessionMonitor: ObservableObject {
         let now = Date()
         let processSessions = candidates.map { candidate in
             let sidecar = candidate.harness == .claude ? readClaudeSidecar(pid: candidate.pid) : nil
+            let id = "local:\(candidate.harness.rawValue):\(candidate.pid)"
             return AgentSession(
-                id: candidate.pid,
+                id: id,
                 pid: candidate.pid,
                 harness: candidate.harness,
+                remoteHost: nil,
+                sshTarget: nil,
                 projectPath: cwdByPID[candidate.pid],
                 title: sidecar?.name,
-                startedAt: startedAtByPID[candidate.pid] ?? processStartDate(elapsed: candidate.elapsed, now: now),
+                startedAt: startedAtByPID[id] ?? processStartDate(elapsed: candidate.elapsed, now: now),
                 updatedAt: sidecar?.updatedAt.map { Date(timeIntervalSince1970: $0 / 1000) } ?? now,
-                state: sidecar?.status == "idle" ? .waiting : .running
+                state: sidecar?.status == "idle" ? .idle : .running
             )
         }
         return processSessions + discoverCodexSessions(now: now)
@@ -320,9 +369,11 @@ final class SessionMonitor: ObservableObject {
 
             let numericID = stableID(for: metadata.id)
             return AgentSession(
-                id: numericID,
+                id: "local:codex:\(metadata.id)",
                 pid: numericID,
                 harness: .codex,
+                remoteHost: nil,
+                sshTarget: nil,
                 projectPath: metadata.cwd,
                 title: titles[metadata.id],
                 startedAt: metadata.startedAt,

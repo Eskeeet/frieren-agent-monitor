@@ -22,26 +22,33 @@ enum Harness: String, CaseIterable, Codable {
 }
 
 enum MonitorState: String, Codable {
-    case running, waiting, finished
+    case running, waiting, finished, idle
 
     var label: String {
         switch self {
         case .running: return "Running"
         case .waiting: return "Needs input"
         case .finished: return "Finished"
+        case .idle: return "Idle"
         }
     }
 }
 
 struct AgentSession: Identifiable, Equatable {
-    let id: Int
+    let id: String
     let pid: Int
     let harness: Harness
+    let remoteHost: String?
+    let sshTarget: String?
     var projectPath: String?
     var title: String?
     let startedAt: Date
     var updatedAt: Date
     var state: MonitorState
+
+    var isRemote: Bool { remoteHost != nil }
+
+    var sourceID: String { remoteHost.map { "remote:\($0)" } ?? "local" }
 
     var displayName: String {
         if let title, !title.isEmpty, title != "main-agent" { return title }
@@ -53,6 +60,13 @@ struct AgentSession: Identifiable, Equatable {
         }
         return harness.label
     }
+}
+
+struct RemoteHostStatus: Identifiable, Equatable {
+    let id: String
+    let sshTarget: String
+    let isOnline: Bool
+    let error: String?
 }
 
 enum PetMood: Hashable {
