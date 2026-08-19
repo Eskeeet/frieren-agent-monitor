@@ -71,7 +71,9 @@ existing hooks in:
 - `~/.cursor/hooks.json`
 
 Only configuration directories that already exist are updated. Restart active
-agent sessions after installing hooks.
+agent sessions after installing hooks. Claude hooks also clear an input alert
+when a prompt is submitted or the matching permission-gated tool resolves;
+background subagent tool activity does not clear an unrelated alert.
 
 ## Remote machines over SSH
 

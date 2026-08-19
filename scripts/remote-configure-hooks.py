@@ -26,14 +26,33 @@ def write(path, value):
     os.replace(temporary, path)
 
 
+def add_matcher_hook(hooks, event, agent, argument, timeout):
+    groups = hooks.setdefault(event, [])
+    command = f"{HOOK} {agent} {argument}"
+    if not any(item.get("command") == command for group in groups for item in group.get("hooks", [])):
+        groups.append({"matcher": "", "hooks": [{"type": "command", "command": command, "timeout": timeout}]})
+
+
 def matcher_hooks(path, agent):
     root = read(path)
     hooks = root.setdefault("hooks", {})
     for event, argument, timeout in (("Stop", "stop", 30), ("PermissionRequest", "permission", 600)):
-        groups = hooks.setdefault(event, [])
-        command = f"{HOOK} {agent} {argument}"
-        if not any(item.get("command") == command for group in groups for item in group.get("hooks", [])):
-            groups.append({"matcher": "", "hooks": [{"type": "command", "command": command, "timeout": timeout}]})
+        add_matcher_hook(hooks, event, agent, argument, timeout)
+    write(path, root)
+
+
+def claude_hooks(path):
+    root = read(path)
+    hooks = root.setdefault("hooks", {})
+    for event, argument, timeout in (
+        ("Stop", "stop", 30),
+        ("PermissionRequest", "permission", 600),
+        ("UserPromptSubmit", "start", 30),
+        ("PostToolUse", "resume", 30),
+        ("PostToolUseFailure", "resume", 30),
+        ("PermissionDenied", "resume", 30),
+    ):
+        add_matcher_hook(hooks, event, "claude-code", argument, timeout)
     write(path, root)
 
 
@@ -50,7 +69,7 @@ def cursor_hooks(path):
 
 
 targets = (
-    (HOME / ".claude" / "settings.json", lambda path: matcher_hooks(path, "claude-code")),
+    (HOME / ".claude" / "settings.json", claude_hooks),
     (HOME / ".codex" / "hooks.json", lambda path: matcher_hooks(path, "codex")),
     (HOME / ".cursor" / "hooks.json", cursor_hooks),
 )

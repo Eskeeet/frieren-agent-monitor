@@ -14,6 +14,7 @@ private struct HookRecord: Decodable {
     let projectPath: String?
     let pid: Int?
     let title: String?
+    let requestKey: String?
 }
 
 private struct CodexRolloutRecord: Decodable {
@@ -236,6 +237,7 @@ final class SessionMonitor: ObservableObject {
             if !next.contains(where: { $0.id == old.id }) { next.append(old) }
         }
 
+        var pendingPermissionsBySession: [String: Set<String>] = [:]
         for hook in hooks {
             guard let index = bestMatch(for: hook, in: next) else { continue }
             let hookDate = Date(timeIntervalSince1970: hook.timestamp)
@@ -248,6 +250,7 @@ final class SessionMonitor: ObservableObject {
             if hook.event == "start" {
                 next[index].state = .running
                 next[index].updatedAt = hookDate
+                pendingPermissionsBySession.removeValue(forKey: next[index].id)
                 if let title = hook.title, !title.isEmpty { next[index].title = title }
                 if let projectPath = hook.projectPath,
                    projectPath != "/",
@@ -256,7 +259,23 @@ final class SessionMonitor: ObservableObject {
                     next[index].projectPath = projectPath
                 }
             }
-            if hook.event == "permission" { next[index].state = .waiting }
+            if hook.event == "permission", let requestKey = hook.requestKey {
+                next[index].state = .waiting
+                pendingPermissionsBySession[next[index].id, default: []].insert(requestKey)
+            }
+            if hook.event == "resume",
+               next[index].state == .waiting,
+               let requestKey = hook.requestKey,
+               var pending = pendingPermissionsBySession[next[index].id],
+               pending.remove(requestKey) != nil {
+                if pending.isEmpty {
+                    next[index].state = .running
+                    next[index].updatedAt = hookDate
+                    pendingPermissionsBySession.removeValue(forKey: next[index].id)
+                } else {
+                    pendingPermissionsBySession[next[index].id] = pending
+                }
+            }
             if hook.event == "stop" { next[index].state = .finished; next[index].updatedAt = hookDate }
         }
         next.removeAll { $0.state == .finished && $0.updatedAt < cutoff }

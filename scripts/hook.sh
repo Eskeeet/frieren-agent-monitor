@@ -11,7 +11,7 @@ project_path="${PWD}"
 pid_value="${PPID}"
 
 /usr/bin/python3 -c '
-import json, sys, time
+import hashlib, json, sys, time
 path, agent, event, project, pid = sys.argv[1:]
 
 try:
@@ -34,9 +34,16 @@ if isinstance(title, str):
 else:
     title = None
 
+request_key = None
+if event in {"permission", "resume"}:
+    identity = [payload.get("agent_id"), payload.get("tool_name"), payload.get("tool_input")]
+    encoded = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+    request_key = hashlib.sha256(encoded).hexdigest()
+
 with open(path, "a", encoding="utf-8") as handle:
     handle.write(json.dumps({
         "timestamp": time.time(), "agent": agent, "event": event,
         "projectPath": project, "pid": int(pid), "title": title,
+        "requestKey": request_key,
     }, separators=(",", ":")) + "\n")
 ' "$state_dir/events.jsonl" "$agent" "$event" "$project_path" "$pid_value" <<<"$payload"

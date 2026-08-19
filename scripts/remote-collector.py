@@ -224,6 +224,7 @@ def recent_hooks():
 
 
 def merge_hooks(sessions):
+    pending_permissions = {}
     for hook in recent_hooks():
         agent = hook.get("agent", "")
         harness = "cursor" if "cursor" in agent else "codex" if "codex" in agent else "claude"
@@ -244,12 +245,25 @@ def merge_hooks(sessions):
         if event == "start":
             match["state"] = "running"
             match["updatedAt"] = stamp
+            pending_permissions.pop(match["id"], None)
             if hook.get("title"):
                 match["title"] = hook["title"]
             if hook.get("projectPath") not in {None, "/"}:
                 match["projectPath"] = hook["projectPath"]
-        elif event == "permission":
+        elif event == "permission" and hook.get("requestKey") is not None:
             match["state"] = "waiting"
+            pending_permissions.setdefault(match["id"], set()).add(hook["requestKey"])
+        elif (
+            event == "resume"
+            and match["state"] == "waiting"
+            and hook.get("requestKey") is not None
+            and hook.get("requestKey") in pending_permissions.get(match["id"], set())
+        ):
+            pending_permissions[match["id"]].remove(hook["requestKey"])
+            if not pending_permissions[match["id"]]:
+                match["state"] = "running"
+                match["updatedAt"] = stamp
+                pending_permissions.pop(match["id"], None)
         elif event == "stop":
             match["state"] = "finished"
             match["updatedAt"] = stamp
