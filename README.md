@@ -5,6 +5,10 @@ Frieren floats above the desktop without a dashboard frame and keeps an eye on
 agent sessions running locally or on remote machines reached through SSH.
 
 <p align="center">
+  <img src="Resources/frieren-agent-sessions.png" alt="Frieren Agent Monitor showing no active agent sessions" width="720">
+</p>
+
+<p align="center">
   <img src="Resources/frieren-spritesheet.png" alt="Frieren Agent Monitor animation sprites" width="420">
   <br>
   <sub>Image source: <a href="https://codexpetdb.com/en/pets/frieren-4">Codex Pet Database — Frieren</a></sub>
