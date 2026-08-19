@@ -6,6 +6,8 @@ agent sessions running locally or on remote machines reached through SSH.
 
 <p align="center">
   <img src="Resources/frieren-spritesheet.png" alt="Frieren Agent Monitor animation sprites" width="420">
+  <br>
+  <sub>Image source: <a href="https://codexpetdb.com/en/pets/frieren-4">Codex Pet Database — Frieren</a></sub>
 </p>
 
 ## Behavior
