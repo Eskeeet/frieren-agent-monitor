@@ -21,6 +21,7 @@ swiftc "$repo_root"/Sources/FrierenMonitor/*.swift \
 
 cp "$repo_root/Resources/Info.plist" "$contents/Info.plist"
 cp "$repo_root/Resources/frieren-spritesheet.png" "$contents/Resources/frieren-spritesheet.png"
+cp "$repo_root/Resources/FrierenMonitor.icns" "$contents/Resources/FrierenMonitor.icns"
 cp "$repo_root/scripts/hook.sh" \
   "$repo_root/scripts/remote-collector.py" \
   "$repo_root/scripts/remote-configure-hooks.py" \
