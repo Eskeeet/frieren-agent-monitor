@@ -3,6 +3,7 @@
 <plist version="1.0"><dict>
 <key>CFBundleDisplayName</key><string>Frieren Monitor</string>
 <key>CFBundleExecutable</key><string>frieren-monitor</string>
+<key>CFBundleIconFile</key><string>FrierenMonitor</string>
 <key>CFBundleIdentifier</key><string>com.eskeeet.frieren-monitor</string>
 <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
 <key>CFBundleName</key><string>Frieren Monitor</string>
