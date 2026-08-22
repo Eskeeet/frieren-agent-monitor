@@ -102,7 +102,7 @@ enum RemoteSetupService {
                     enabled: true
                 ))
                 RemoteSessionSource.invalidateCache()
-                return "\(displayName) is ready. Frieren will check it every eight seconds."
+                return "\(displayName) is ready. The monitor will check it every eight seconds."
             }
             DispatchQueue.main.async { completion(result) }
         }
@@ -133,7 +133,7 @@ enum RemoteSetupService {
         let scripts = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("scripts")
         let development = names.map { scripts.appendingPathComponent($0) }
         guard development.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else {
-            throw SetupError.message("Remote setup resources are missing. Rebuild Frieren Monitor and try again.")
+            throw SetupError.message("Remote setup resources are missing. Rebuild the app and try again.")
         }
         return development
     }

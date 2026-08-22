@@ -1,13 +1,8 @@
 import AppKit
 import SwiftUI
 
-private enum SpriteAnimation {
-    case idle, runLeft, runRight, hi
-    case reactionOne, reactionTwo, reactionThree
-    case needsPrompt, jump
-}
-
-struct FrierenSprite: View {
+struct CharacterSprite: View {
+    let character: CharacterDefinition
     let mood: PetMood
     let hovered: Bool
     let travelDirection: PetTravelDirection?
@@ -19,7 +14,7 @@ struct FrierenSprite: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: interval)) { timeline in
             let animation = animation(at: timeline.date)
-            let frames = SpriteAtlas.frames(for: animation)
+            let frames = CharacterSpriteAtlas.frames(for: animation, character: character)
             let index = Int(timeline.date.timeIntervalSinceReferenceDate / interval) % max(frames.count, 1)
             Group {
                 if frames.indices.contains(index) {
@@ -36,6 +31,7 @@ struct FrierenSprite: View {
             .scaleEffect(hovered ? 1.04 : 1)
             .shadow(color: haloColor.opacity(0.55), radius: haloRadius)
         }
+        .id(character.id)
         .animation(.spring(response: 0.25, dampingFraction: 0.68), value: hovered)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -51,7 +47,7 @@ struct FrierenSprite: View {
         return 0.72
     }
 
-    private func animation(at date: Date) -> SpriteAnimation {
+    private func animation(at date: Date) -> CharacterAnimation {
         if let travelDirection {
             return travelDirection == .left ? .runLeft : .runRight
         }
@@ -90,54 +86,66 @@ struct FrierenSprite: View {
     }
 
     private var accessibilityLabel: String {
+        let name = character.displayName
         if let travelDirection {
-            return "Frieren: running \(travelDirection == .left ? "left" : "right")"
+            return "\(name): running \(travelDirection == .left ? "left" : "right")"
         }
-        if reactingToClick { return "Frieren: reacting" }
-        if hovered { return "Frieren: waving" }
-        if sayingHi { return "Frieren: saying hi" }
-        if runningSessionCount > 3 { return "Frieren: running with busy sessions" }
+        if reactingToClick { return "\(name): reacting" }
+        if hovered { return "\(name): waving" }
+        if sayingHi { return "\(name): saying hi" }
+        if runningSessionCount > 3 { return "\(name): running with busy sessions" }
         switch mood {
-        case .sleeping: return "Frieren: no active sessions"
-        case .watching: return "Frieren: watching sessions"
-        case .working: return "Frieren: sessions running"
-        case .needsInput: return "Frieren: a session needs input"
-        case .celebrating: return "Frieren: a session finished"
+        case .sleeping: return "\(name): no active sessions"
+        case .watching: return "\(name): watching sessions"
+        case .working: return "\(name): sessions running"
+        case .needsInput: return "\(name): a session needs input"
+        case .celebrating: return "\(name): a session finished"
         }
     }
 }
 
-private enum SpriteAtlas {
-    private struct Cell: Hashable { let row: Int; let column: Int }
-    private static let cellWidth = 192
-    private static let cellHeight = 208
-    private static let animationCells: [SpriteAnimation: [Cell]] = [
-        .idle: (0...5).map { Cell(row: 0, column: $0) },
-        .runLeft: (0...7).map { Cell(row: 2, column: $0) },
-        .runRight: (0...7).map { Cell(row: 1, column: $0) },
-        .hi: (0...3).map { Cell(row: 3, column: $0) },
-        .reactionOne: (0...5).map { Cell(row: 7, column: $0) },
-        .reactionTwo: (0...5).map { Cell(row: 8, column: $0) },
-        .reactionThree: (0...4).map { Cell(row: 4, column: $0) },
-        .needsPrompt: [Cell(row: 8, column: 4), Cell(row: 8, column: 5)],
-        .jump: (0...4).map { Cell(row: 4, column: $0) },
-    ]
+private enum CharacterSpriteAtlas {
+    private static var caches: [String: [SpriteCell: NSImage]] = [:]
+    private static let lock = NSLock()
 
-    private static let cache: [Cell: NSImage] = {
-        guard let url = Bundle.main.url(forResource: "frieren-spritesheet", withExtension: "png"),
-              let source = NSImage(contentsOf: url),
-              let image = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return [:] }
-        var result: [Cell: NSImage] = [:]
-        for cell in Set(animationCells.values.flatMap { $0 }) {
-            let rect = CGRect(x: cell.column * cellWidth, y: cell.row * cellHeight,
-                              width: cellWidth, height: cellHeight)
-            guard let crop = image.cropping(to: rect) else { continue }
-            result[cell] = NSImage(cgImage: crop, size: NSSize(width: cellWidth, height: cellHeight))
+    static func frames(
+        for animation: CharacterAnimation,
+        character: CharacterDefinition
+    ) -> [NSImage] {
+        let cache = cachedFrames(for: character)
+        return (character.animations[animation] ?? []).compactMap { cache[$0] }
+    }
+
+    private static func cachedFrames(for character: CharacterDefinition) -> [SpriteCell: NSImage] {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cache = caches[character.id] { return cache }
+
+        guard let url = Bundle.main.url(
+            forResource: character.spriteSheetResource,
+            withExtension: "png"
+        ), let source = NSImage(contentsOf: url),
+           let image = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            caches[character.id] = [:]
+            return [:]
         }
-        return result
-    }()
 
-    static func frames(for animation: SpriteAnimation) -> [NSImage] {
-        return (animationCells[animation] ?? []).compactMap { cache[$0] }
+        var result: [SpriteCell: NSImage] = [:]
+        let cells = Set(character.animations.values.flatMap { $0 })
+        for cell in cells {
+            let rect = CGRect(
+                x: cell.column * character.cellWidth,
+                y: cell.row * character.cellHeight,
+                width: character.cellWidth,
+                height: character.cellHeight
+            )
+            guard let crop = image.cropping(to: rect) else { continue }
+            result[cell] = NSImage(
+                cgImage: crop,
+                size: NSSize(width: character.cellWidth, height: character.cellHeight)
+            )
+        }
+        caches[character.id] = result
+        return result
     }
 }

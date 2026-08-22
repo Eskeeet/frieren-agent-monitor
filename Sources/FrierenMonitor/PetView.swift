@@ -13,6 +13,7 @@ private struct PetAlert {
 struct PetView: View {
     @ObservedObject var monitor: SessionMonitor
     @ObservedObject var motion: PetMotion
+    @ObservedObject var characters: CharacterStore
     let quit: () -> Void
     let setExpanded: (Bool) -> Void
     @State private var hoveringPet = false
@@ -89,7 +90,8 @@ struct PetView: View {
 
     private var pet: some View {
         ZStack(alignment: .topTrailing) {
-            FrierenSprite(
+            CharacterSprite(
+                character: characters.selected,
                 mood: spriteMood,
                 hovered: spriteHovered,
                 travelDirection: motion.dragDirection,
@@ -110,6 +112,22 @@ struct PetView: View {
         }
         .simultaneousGesture(TapGesture().onEnded { playClickReaction() })
         .contextMenu {
+            Menu("Character") {
+                ForEach(characters.characters) { character in
+                    Button {
+                        recordInteraction()
+                        characters.select(character)
+                    } label: {
+                        Label(
+                            character.displayName,
+                            systemImage: characters.selected.id == character.id
+                                ? "checkmark.circle.fill"
+                                : "circle"
+                        )
+                    }
+                }
+            }
+            Divider()
             Button("Set Up Remote SSH…") {
                 recordInteraction()
                 NSApplication.shared.activate(ignoringOtherApps: true)
@@ -356,7 +374,7 @@ struct PetView: View {
         if monitor.sessions.contains(where: { $0.state == .finished }) { return "Recent work finished" }
         let idle = monitor.liveSessions.filter { $0.state == .idle }.count
         if idle > 0 { return "\(idle) idle" }
-        return "Frieren is resting"
+        return "\(characters.selected.displayName) is resting"
     }
 
     private func statusColor(_ state: MonitorState) -> Color {

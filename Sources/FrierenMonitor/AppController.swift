@@ -94,6 +94,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private static let expandedSize = NSSize(width: 430, height: 260)
     private let monitor = SessionMonitor()
     private let motion = PetMotion()
+    private let characters = CharacterStore()
     private var panel: PetPanel!
     private var collapseWorkItem: DispatchWorkItem?
 
@@ -109,6 +110,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let host = NSHostingView(rootView: PetView(
             monitor: monitor,
             motion: motion,
+            characters: characters,
             quit: { NSApplication.shared.terminate(nil) },
             setExpanded: { [weak self] expanded in self?.setExpanded(expanded) }
         ))

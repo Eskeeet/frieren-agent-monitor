@@ -18,7 +18,7 @@ struct RemoteSetupView: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Set Up Remote SSH").font(.title2.bold())
-                Text("Frieren will install a small collector and add lifecycle hooks without replacing existing agent settings.")
+                Text("The monitor will install a small collector and add lifecycle hooks without replacing existing agent settings.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

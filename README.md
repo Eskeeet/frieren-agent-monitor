@@ -132,6 +132,16 @@ its last-known active sessions are retained instead of being reported as
 finished. Remote Claude processes reported as idle are shown separately at the
 bottom instead of being treated as needs-input sessions.
 
+## Adding characters
+
+Characters are defined in
+`Sources/FrierenMonitor/CharacterDefinition.swift`. Each definition supplies a
+display name, spritesheet resource, cell size, and the cells used by each
+animation. Add a corresponding `*-spritesheet.png` file to `Resources`, then
+include the new definition in `CharacterDefinition.bundled`. The character will
+automatically appear in the pet's right-click **Character** menu, and the user's
+choice is remembered between launches.
+
 ## License
 
 [MIT](LICENSE)
