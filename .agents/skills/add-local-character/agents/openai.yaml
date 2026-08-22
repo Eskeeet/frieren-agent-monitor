@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Local Character"
+  short_description: "Import any character image into the local app"
+  default_prompt: "Use $add-local-character to import this image source as a character in my local Frieren Monitor app."

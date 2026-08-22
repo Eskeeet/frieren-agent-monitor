@@ -119,14 +119,13 @@ private enum CharacterSpriteAtlas {
     private static func cachedFrames(for character: CharacterDefinition) -> [SpriteCell: NSImage] {
         lock.lock()
         defer { lock.unlock() }
-        if let cache = caches[character.id] { return cache }
+        let cacheKey = "\(character.id)|\(character.spriteSheet.cacheKey)"
+        if let cache = caches[cacheKey] { return cache }
 
-        guard let url = Bundle.main.url(
-            forResource: character.spriteSheetResource,
-            withExtension: "png"
-        ), let source = NSImage(contentsOf: url),
+        guard let url = character.spriteSheet.url,
+              let source = NSImage(contentsOf: url),
            let image = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            caches[character.id] = [:]
+            caches[cacheKey] = [:]
             return [:]
         }
 
@@ -145,7 +144,7 @@ private enum CharacterSpriteAtlas {
                 size: NSSize(width: character.cellWidth, height: character.cellHeight)
             )
         }
-        caches[character.id] = result
+        caches[cacheKey] = result
         return result
     }
 }

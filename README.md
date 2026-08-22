@@ -134,13 +134,20 @@ bottom instead of being treated as needs-input sessions.
 
 ## Adding characters
 
-Characters are defined in
-`Sources/FrierenMonitor/CharacterDefinition.swift`. Each definition supplies a
-display name, spritesheet resource, cell size, and the cells used by each
-animation. Add a corresponding `*-spritesheet.png` file to `Resources`, then
-include the new definition in `CharacterDefinition.bundled`. The character will
-automatically appear in the pet's right-click **Character** menu, and the user's
-choice is remembered between launches.
+Local characters live outside the repository in
+`~/Library/Application Support/Frieren Monitor/Characters`. Each character has
+its own folder containing a PNG and `character.json` manifest. The manifest can
+describe a still image, the legacy 8-by-9 atlas, or a custom animation layout.
+
+Use the repo-scoped [`add-local-character`](.agents/skills/add-local-character/SKILL.md)
+Codex skill to import artwork from a webpage, direct image URL, downloadable
+kit, or local file. Local characters automatically appear in the pet's
+right-click **Character** menu, and the user's choice is remembered between
+launches. Imported artwork remains local and is not committed to this repo.
+
+Developers can still ship shared defaults by defining them in
+`Sources/FrierenMonitor/CharacterDefinition.swift` and placing matching
+`*-spritesheet.png` assets in `Resources`.
 
 ## License
 
