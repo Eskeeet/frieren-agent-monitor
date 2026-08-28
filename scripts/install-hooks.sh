@@ -8,10 +8,10 @@ mkdir -p "$state_dir"
 cp "$repo_root/scripts/hook.sh" "$hook_path"
 chmod +x "$hook_path"
 
-/usr/bin/python3 - "$hook_path" <<'PY'
-import json, os, pathlib, sys
+/usr/bin/python3 - "$hook_path" "$repo_root/scripts/pi-extension.ts" <<'PY'
+import json, os, pathlib, shutil, sys
 
-hook = sys.argv[1]
+hook, pi_extension = sys.argv[1:]
 
 def read(path):
     try:
@@ -78,6 +78,14 @@ for path, configure in targets:
     if os.path.isdir(os.path.dirname(path)):
         configure(path)
         print(f"wired {path}")
+
+# Pi uses an extension instead of a hooks config.
+pi_ext_dir = os.path.join(home, ".pi", "agent", "extensions")
+if os.path.isdir(os.path.join(home, ".pi", "agent")):
+    os.makedirs(pi_ext_dir, exist_ok=True)
+    ext_path = os.path.join(pi_ext_dir, "frieren-monitor.ts")
+    shutil.copyfile(pi_extension, ext_path)
+    print(f"wired {ext_path}")
 PY
 
 echo "Frieren Monitor hooks installed alongside existing hooks."
