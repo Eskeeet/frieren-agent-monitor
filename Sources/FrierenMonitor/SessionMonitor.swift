@@ -155,7 +155,7 @@ final class SessionMonitor: ObservableObject {
             bundleIdentifier = "com.openai.codex"
         case .cursor:
             bundleIdentifier = "com.todesktop.230313mzl4w4u92"
-        case .claude:
+        case .claude, .pi:
             bundleIdentifier = nil
         }
 
@@ -492,6 +492,11 @@ final class SessionMonitor: ObservableObject {
             let infrastructure = ["daemon", "bg-pty-host", "bg-spare", "--bg-pty-host", "--bg-spare"]
             return tokens.dropFirst().contains(where: infrastructure.contains) ? nil : .claude
         }
+        if executable == "pi" {
+            // Skip non-interactive modes that are not agent sessions.
+            let nonInteractive = ["install", "remove", "uninstall", "update", "list", "config", "--help", "-h", "--version", "-v"]
+            return tokens.dropFirst().first.map(nonInteractive.contains) == true ? nil : .pi
+        }
         if executable == "codex" { return .codex }
         if executable == "cursor-agent" { return .cursor }
         // Current Cursor desktop builds host Agent sessions in a dedicated
@@ -500,6 +505,7 @@ final class SessionMonitor: ObservableObject {
         if ["node", "deno", "bun"].contains(executable) {
             if args.range(of: #"\bcodex(-cli)?\b"#, options: .regularExpression) != nil { return .codex }
             if args.range(of: #"\bcursor-agent\b"#, options: .regularExpression) != nil { return .cursor }
+            if args.range(of: #"\bpi-coding-agent\b"#, options: .regularExpression) != nil { return .pi }
         }
         return nil
     }
@@ -522,6 +528,7 @@ final class SessionMonitor: ObservableObject {
     nonisolated private static func harness(for agent: String) -> Harness {
         if agent.contains("cursor") { return .cursor }
         if agent.contains("codex") { return .codex }
+        if agent == "pi" || agent.contains("pi-coding-agent") { return .pi }
         return .claude
     }
 

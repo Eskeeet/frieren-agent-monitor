@@ -14,6 +14,7 @@ ssh -o BatchMode=yes "$target" 'mkdir -p "$HOME/.frieren-monitor"'
 scp "$repo_root/scripts/hook.sh" \
   "$repo_root/scripts/remote-collector.py" \
   "$repo_root/scripts/remote-configure-hooks.py" \
+  "$repo_root/scripts/pi-extension.ts" \
   "$target:.frieren-monitor/"
 ssh -o BatchMode=yes "$target" \
   'chmod +x "$HOME/.frieren-monitor/hook.sh" "$HOME/.frieren-monitor/remote-collector.py" && python3 "$HOME/.frieren-monitor/remote-configure-hooks.py"'

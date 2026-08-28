@@ -122,7 +122,7 @@ enum RemoteSetupService {
     }
 
     private static func deploymentResources() throws -> [URL] {
-        let names = ["hook.sh", "remote-collector.py", "remote-configure-hooks.py"]
+        let names = ["hook.sh", "remote-collector.py", "remote-configure-hooks.py", "pi-extension.ts"]
         let bundled = names.map { Bundle.main.resourceURL?.appendingPathComponent($0) }
         if bundled.allSatisfy({ url in
             url.map { FileManager.default.fileExists(atPath: $0.path) } == true

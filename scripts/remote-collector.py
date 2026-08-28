@@ -48,6 +48,9 @@ def harness_for(args):
     if executable == "claude":
         infrastructure = {"daemon", "bg-pty-host", "bg-spare", "--bg-pty-host", "--bg-spare"}
         return None if any(token in infrastructure for token in tokens[1:]) else "claude"
+    if executable == "pi":
+        non_interactive = {"install", "remove", "uninstall", "update", "list", "config", "--help", "-h", "--version", "-v"}
+        return None if len(tokens) > 1 and tokens[1] in non_interactive else "pi"
     if executable == "codex":
         return "codex"
     if executable == "cursor-agent":
@@ -59,6 +62,8 @@ def harness_for(args):
             return "codex"
         if re.search(r"\bcursor-agent\b", args):
             return "cursor"
+        if re.search(r"\bpi-coding-agent\b", args):
+            return "pi"
     return None
 
 
@@ -227,7 +232,14 @@ def merge_hooks(sessions):
     pending_permissions = {}
     for hook in recent_hooks():
         agent = hook.get("agent", "")
-        harness = "cursor" if "cursor" in agent else "codex" if "codex" in agent else "claude"
+        if "cursor" in agent:
+            harness = "cursor"
+        elif "codex" in agent:
+            harness = "codex"
+        elif agent == "pi" or "pi-coding-agent" in agent:
+            harness = "pi"
+        else:
+            harness = "claude"
         matches = [session for session in sessions if session["harness"] == harness]
         match = next((session for session in matches if session["pid"] == hook.get("pid")), None)
         if match is None and hook.get("projectPath"):

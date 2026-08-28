@@ -1,6 +1,6 @@
 # Frieren Agent Monitor
 
-A local, open-source macOS desktop companion for Claude Code, Codex, and Cursor.
+A local, open-source macOS desktop companion for Claude Code, Codex, Cursor, and Pi.
 Frieren floats above the desktop without a dashboard frame and keeps an eye on
 agent sessions running locally or on remote machines reached through SSH.
 
@@ -64,7 +64,7 @@ hooks, and launch it in one step:
 ./install.sh
 ```
 
-Frieren discovers Claude Code and Cursor from local process and session data,
+Frieren discovers Claude Code, Cursor, and Pi from local process and session data,
 and Codex from top-level rollout logs. Internal Codex subagent turns are folded
 into their parent task, while Cursor lifecycle hooks remain authoritative across
 restarts of its persistent Agents Window host. Cursor rows use a short version
@@ -75,10 +75,13 @@ existing hooks in:
 - `~/.claude/settings.json`
 - `~/.codex/hooks.json`
 - `~/.cursor/hooks.json`
+- `~/.pi/agent/extensions/frieren-monitor.ts`
 
-Only configuration directories that already exist are updated. Restart active
-agent sessions after installing hooks. Claude hooks also clear an input alert
-when a prompt is submitted or the matching permission-gated tool resolves;
+Only configuration directories that already exist are updated. Pi uses a small
+global extension to report lifecycle events; the other harnesses use their
+native hook configuration. Restart active agent sessions after installing hooks.
+Claude hooks also clear an input alert when a prompt is submitted or the matching
+permission-gated tool resolves;
 background subagent tool activity does not clear an unrelated alert.
 
 ## Remote machines over SSH

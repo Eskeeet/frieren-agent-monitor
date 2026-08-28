@@ -2,13 +2,14 @@ import Foundation
 import SwiftUI
 
 enum Harness: String, CaseIterable, Codable {
-    case claude, codex, cursor
+    case claude, codex, cursor, pi
 
     var label: String {
         switch self {
         case .claude: return "Claude Code"
         case .codex: return "Codex"
         case .cursor: return "Cursor"
+        case .pi: return "Pi"
         }
     }
 
@@ -17,6 +18,7 @@ enum Harness: String, CaseIterable, Codable {
         case .claude: return Color(red: 0.87, green: 0.48, blue: 0.31)
         case .codex: return Color(red: 0.20, green: 0.78, blue: 0.52)
         case .cursor: return Color(red: 0.52, green: 0.57, blue: 0.98)
+        case .pi: return Color(red: 0.64, green: 0.43, blue: 0.85)
         }
     }
 }

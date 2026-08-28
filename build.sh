@@ -25,6 +25,7 @@ cp "$repo_root/Resources/FrierenMonitor.icns" "$contents/Resources/FrierenMonito
 cp "$repo_root/scripts/hook.sh" \
   "$repo_root/scripts/remote-collector.py" \
   "$repo_root/scripts/remote-configure-hooks.py" \
+  "$repo_root/scripts/pi-extension.ts" \
   "$contents/Resources/"
 chmod +x "$contents/Resources/hook.sh"
 codesign --force --deep --sign - "$app"

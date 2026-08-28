@@ -4,9 +4,11 @@
 import json
 import os
 import pathlib
+import shutil
 
 HOME = pathlib.Path.home()
 HOOK = HOME / ".frieren-monitor" / "hook.sh"
+PI_EXTENSION = HOME / ".frieren-monitor" / "pi-extension.ts"
 
 
 def read(path):
@@ -68,12 +70,26 @@ def cursor_hooks(path):
     write(path, root)
 
 
+def install_pi_extension(extensions_dir):
+    """Install the frieren-monitor pi extension for lifecycle hooks."""
+    if not extensions_dir.parent.is_dir() or not PI_EXTENSION.is_file():
+        return
+    extensions_dir.mkdir(parents=True, exist_ok=True)
+    ext_path = extensions_dir / "frieren-monitor.ts"
+    shutil.copyfile(PI_EXTENSION, ext_path)
+    print(f"wired {ext_path}")
+
+
 targets = (
     (HOME / ".claude" / "settings.json", claude_hooks),
     (HOME / ".codex" / "hooks.json", lambda path: matcher_hooks(path, "codex")),
     (HOME / ".cursor" / "hooks.json", cursor_hooks),
+    (HOME / ".pi" / "agent" / "extensions", None),
 )
 for path, configure in targets:
-    if path.parent.is_dir():
+    if configure is None:
+        # Pi uses an extension rather than a hooks config file.
+        install_pi_extension(path)
+    elif path.parent.is_dir():
         configure(path)
         print(f"wired {path}")
