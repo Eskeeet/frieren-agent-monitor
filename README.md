@@ -14,6 +14,25 @@ agent sessions running locally or on remote machines reached through SSH.
   <sub>Image source: <a href="https://codexpetdb.com/en/pets/frieren-4">Codex Pet Database — Frieren</a></sub>
 </p>
 
+## Latest updates
+
+- **Pi support:** monitor Pi sessions locally and on SSH hosts, with lifecycle
+  events supplied by a lightweight global Pi extension.
+- **Exchangeable characters:** choose a bundled or local companion from the
+  right-click **Character** menu; selections persist across launches.
+- **Flexible character imports:** local characters can use a still image, the
+  legacy Frieren atlas, or a custom animation manifest.
+- **Native app identity:** the built app now includes a Frieren application icon.
+
+## Supported agents
+
+| Agent | Local | Remote over SSH | Detection |
+| --- | :---: | :---: | --- |
+| Claude Code | Yes | Yes | Process data, session sidecar, and lifecycle hooks |
+| Codex | Yes | Yes | Top-level rollout logs and lifecycle hooks |
+| Cursor | Yes | Yes | CLI/Desktop process data and lifecycle hooks |
+| Pi | Yes | Yes | Process data and the Frieren Monitor Pi extension |
+
 ## Behavior
 
 - Sleeping: no active sessions
@@ -64,13 +83,14 @@ hooks, and launch it in one step:
 ./install.sh
 ```
 
-Frieren discovers Claude Code, Cursor, and Pi from local process and session data,
-and Codex from top-level rollout logs. Internal Codex subagent turns are folded
-into their parent task, while Cursor lifecycle hooks remain authoritative across
+Frieren discovers Claude Code, Cursor, and Pi from live process metadata, and
+Codex from top-level rollout logs. Internal Codex subagent turns are folded into
+their parent task, while Cursor lifecycle hooks remain authoritative across
 restarts of its persistent Agents Window host. Cursor rows use a short version
-of the latest submitted prompt as their session summary. The hook installer
-copies its event script to `~/.frieren-monitor/hook.sh` and adds entries alongside
-existing hooks in:
+of the latest submitted prompt as their session summary.
+
+The hook installer copies its event script to `~/.frieren-monitor/hook.sh` and
+configures lifecycle reporting alongside existing agent settings in:
 
 - `~/.claude/settings.json`
 - `~/.codex/hooks.json`
@@ -81,8 +101,8 @@ Only configuration directories that already exist are updated. Pi uses a small
 global extension to report lifecycle events; the other harnesses use their
 native hook configuration. Restart active agent sessions after installing hooks.
 Claude hooks also clear an input alert when a prompt is submitted or the matching
-permission-gated tool resolves;
-background subagent tool activity does not clear an unrelated alert.
+permission-gated tool resolves; background subagent tool activity does not clear
+an unrelated alert.
 
 ## Remote machines over SSH
 
@@ -96,9 +116,9 @@ jumps, keys, and other options from `~/.ssh/config`.
 4. Click **Set Up**.
 
 Frieren copies a small read-only collector to `~/.frieren-monitor` on the remote
-machine, adds lifecycle hooks alongside existing agent settings, and registers
-the host on the Mac. If the identity is already set by `~/.ssh/config`, leave
-the identity-file field blank.
+machine, configures lifecycle reporting for installed agents—including Pi—and
+registers the host on the Mac. If the identity is already set by
+`~/.ssh/config`, leave the identity-file field blank.
 
 SSH must already work with a key or `ssh-agent`; interactive password prompts
 are not supported. New host keys are accepted on first connection, while
