@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 export default function (pi: ExtensionAPI) {
   const hook = join(homedir(), ".frieren-monitor", "hook.sh");
+  let active = false;
 
   function report(event: "start" | "stop") {
     spawnSync(hook, ["pi", event], {
@@ -14,7 +15,18 @@ export default function (pi: ExtensionAPI) {
     });
   }
 
-  pi.on("agent_start", async () => report("start"));
-  pi.on("agent_end", async () => report("stop"));
-  pi.on("session_shutdown", async () => report("stop"));
+  pi.on("agent_start", async () => {
+    active = true;
+    report("start");
+  });
+  pi.on("agent_settled", async () => {
+    if (!active) return;
+    active = false;
+    report("stop");
+  });
+  pi.on("session_shutdown", async () => {
+    if (!active) return;
+    active = false;
+    report("stop");
+  });
 }
