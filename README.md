@@ -1,4 +1,4 @@
-# Frieren Agent Monitor
+# Frieren (or Waifu of Your Choice) Agent Monitor
 
 A local, open-source macOS desktop companion for Claude Code, Codex, Cursor, and Pi.
 Frieren floats above the desktop without a dashboard frame and keeps an eye on
