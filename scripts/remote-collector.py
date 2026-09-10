@@ -106,6 +106,10 @@ def process_sessions():
             continue
         sidecar = read_json(HOME / ".claude" / "sessions" / f"{pid}.json") if harness == "claude" else None
         updated = sidecar.get("updatedAt") / 1000 if isinstance(sidecar, dict) and sidecar.get("updatedAt") else NOW
+        # Claude can hand control back to an interactive shell without exiting
+        # its long-lived process. Both `idle` and `shell` mean that no agent
+        # turn is currently running.
+        inactive = isinstance(sidecar, dict) and sidecar.get("status") in {"idle", "shell"}
         sessions.append({
             "id": f"{harness}:{pid}",
             "pid": pid,
@@ -114,7 +118,7 @@ def process_sessions():
             "title": sidecar.get("name") if isinstance(sidecar, dict) else None,
             "startedAt": NOW - elapsed_seconds(parts[1]),
             "updatedAt": updated,
-            "state": "idle" if isinstance(sidecar, dict) and sidecar.get("status") == "idle" else "running",
+            "state": "idle" if inactive else "running",
         })
     return sessions
 

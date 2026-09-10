@@ -334,7 +334,10 @@ final class SessionMonitor: ObservableObject {
                 title: sidecar?.name,
                 startedAt: startedAtByPID[id] ?? processStartDate(elapsed: candidate.elapsed, now: now),
                 updatedAt: sidecar?.updatedAt.map { Date(timeIntervalSince1970: $0 / 1000) } ?? now,
-                state: sidecar?.status == "idle" ? .idle : .running
+                // Claude keeps its process alive when it hands control back to
+                // an interactive shell. That is an open session, not active
+                // agent work, just like its explicit `idle` sidecar state.
+                state: ["idle", "shell"].contains(sidecar?.status) ? .idle : .running
             )
         }
         return processSessions + discoverCodexSessions(now: now)
